@@ -7,3 +7,8 @@ Thumbs.db
 
 # Node dependencies
 node_modules/
+
+# AI Agent specific documentation
+AGENTS.md
+CLAUDE.md
+Gemini.md
