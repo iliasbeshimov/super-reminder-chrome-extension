@@ -19,7 +19,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
             return;
         }
         
-        const reminderId = parseInt(alarm.name.split('-')[1]);
+                const reminderId = parseFloat(alarm.name.split('-')[1]);
         if (isNaN(reminderId)) {
             console.warn('Invalid reminder ID from alarm:', alarm.name);
             return;
@@ -85,40 +85,46 @@ async function injectTakeover(reminder) {
     }
 }
 
-async function injectIntoTab(tab, reminder, retryCount = 0) {
-    try {
-        // First inject CSS and script
-        await Promise.all([
-            chrome.scripting.insertCSS({
-                target: { tabId: tab.id },
-                files: ['content/takeover.css'],
-            }),
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                files: ['content/takeover_injector.js'],
-            })
-        ]);
-        
-        // Wait for script to initialize before sending message
-        await new Promise(resolve => setTimeout(resolve, SCRIPT_INJECTION_TIMEOUT));
-        
-        // Send the reminder data to the injected script
-        await chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TAKEOVER', reminder });
-        
-        console.log(`Successfully injected takeover into tab ${tab.id}`);
-    } catch (error) {
-        console.error(`Failed to inject into tab ${tab.id}:`, error);
-        
-        // Retry injection for certain errors
-        if (retryCount < MAX_INJECTION_RETRIES && 
-            (error.message?.includes('receiving end does not exist') || 
-             error.message?.includes('tab was closed'))) {
-            
-            console.log(`Retrying injection into tab ${tab.id} (attempt ${retryCount + 1})`);
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
-            return injectIntoTab(tab, reminder, retryCount + 1);
+async function injectIntoTab(tab, reminder) {
+    return new Promise(async (resolve, reject) => {
+        const HANDSHAKE_TIMEOUT = 5000; // 5 seconds
+
+        const timeoutId = setTimeout(() => {
+            chrome.runtime.onMessage.removeListener(listener);
+            reject(new Error(`Handshake timeout for tab ${tab.id}`));
+        }, HANDSHAKE_TIMEOUT);
+
+        const listener = (message, sender) => {
+            if (message.type === 'CONTENT_SCRIPT_READY' && sender.tab.id === tab.id) {
+                clearTimeout(timeoutId);
+                chrome.runtime.onMessage.removeListener(listener);
+
+                chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TAKEOVER', reminder })
+                    .then(response => {
+                        if (response?.success) {
+                            console.log(`Successfully showed takeover in tab ${tab.id}`);
+                            resolve();
+                        } else {
+                            console.warn(`Takeover in tab ${tab.id} failed after handshake. Response:`, response);
+                            reject(new Error('Takeover failed after handshake'));
+                        }
+                    })
+                    .catch(reject);
+            }
+        };
+
+        chrome.runtime.onMessage.addListener(listener);
+
+        try {
+            await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['content/takeover.css'] });
+            await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content/takeover_injector.js'] });
+        } catch (error) {
+            clearTimeout(timeoutId);
+            chrome.runtime.onMessage.removeListener(listener);
+            console.warn(`Failed to inject script into tab ${tab.id}. It might be a protected page or was closed.`, error.message);
+            reject(error);
         }
-    }
+    });
 }
 
 
@@ -162,6 +168,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     }
                     await broadcastMessage({ type: 'CLOSE_TAKEOVER' });
                     sendResponse({ success: true });
+                    break;
+
+                case 'CONTENT_SCRIPT_READY':
+                    // This is handled by a temporary listener in injectIntoTab. Do nothing here.
                     break;
                     
                 default:

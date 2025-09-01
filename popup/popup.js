@@ -361,10 +361,10 @@ remindersList.addEventListener('click', e => {
     const deleteBtn = e.target.closest('.delete-btn');
 
     if (editBtn) {
-        const id = parseInt(editBtn.getAttribute('data-id'), 10);
+                const id = parseFloat(editBtn.getAttribute('data-id'));
         populateFormForEdit(id);
     } else if (deleteBtn) {
-        const id = parseInt(deleteBtn.getAttribute('data-id'), 10);
+                const id = parseFloat(deleteBtn.getAttribute('data-id'));
         handleDeleteReminder(id);
     }
 });

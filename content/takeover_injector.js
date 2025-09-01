@@ -54,6 +54,7 @@
     }
 
     // --- MESSAGE LISTENER ---
+        // --- MESSAGE LISTENER ---
     messageListener = (message, sender, sendResponse) => {
         try {
             switch (message.type) {
@@ -71,6 +72,7 @@
                     sendResponse({ success: true });
                     break;
                 default:
+                    // Silently ignore unknown message types
                     sendResponse({ success: false, error: 'Unknown message type' });
             }
         } catch (error) {
@@ -82,6 +84,16 @@
 
     if (chrome.runtime?.onMessage) {
         chrome.runtime.onMessage.addListener(messageListener);
+    }
+
+    // --- INITIALIZATION & HANDSHAKE ---
+    // Signal to the service worker that the script is injected and ready.
+    // This is crucial for solving the race condition.
+    try {
+        chrome.runtime.sendMessage({ type: 'CONTENT_SCRIPT_READY' });
+    } catch (e) {
+        // This can happen if the extension context is invalidated (e.g., during an update).
+        console.warn('Could not send CONTENT_SCRIPT_READY message:', e.message);
     }
 
     // --- DOM MANIPULATION ---
