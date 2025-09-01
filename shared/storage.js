@@ -120,7 +120,9 @@ export async function saveReminder(reminderData, id = null) {
         updateCacheTimestamp();
         
         // Return the saved reminder
-        const savedReminder = id !== null ? reminders.find(r => r.id === id) : reminderData;
+        // Return the saved reminder
+        // When creating a new reminder, it's always the last one in the array.
+        const savedReminder = id !== null ? reminders.find(r => r.id === id) : reminders[reminders.length - 1];
         return savedReminder;
     } catch (error) {
         console.error('Error saving reminder:', error);

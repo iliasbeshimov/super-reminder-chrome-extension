@@ -17,9 +17,13 @@
     // --- CLEANUP UTILITIES ---
     function cleanup() {
         // Remove event listeners
-        eventListeners.forEach(({ element, event, handler }) => {
+        eventListeners.forEach(({ element, event, handler, options }) => {
             if (element && element.removeEventListener) {
-                element.removeEventListener(event, handler);
+                try {
+                    element.removeEventListener(event, handler, options);
+                } catch (_) {
+                    // Ignore remove failures
+                }
             }
         });
         eventListeners = [];
@@ -37,9 +41,16 @@
         }
     }
 
-    function addEventListenerWithCleanup(element, event, handler) {
-        element.addEventListener(event, handler);
-        eventListeners.push({ element, event, handler });
+    function addEventListenerWithCleanup(element, event, handler, options) {
+        try {
+            element.addEventListener(event, handler, options);
+            eventListeners.push({ element, event, handler, options });
+        } catch (err) {
+            // Some pages disallow certain events (e.g., 'unload'). Fail gracefully.
+            if (typeof console !== 'undefined' && console.debug) {
+                console.debug('Super Reminder: could not add listener', { event, error: String(err) });
+            }
+        }
     }
 
     // --- MESSAGE LISTENER ---
@@ -273,9 +284,18 @@
         return str.replace(/<[^>]*>/g, '').trim().substring(0, 1000);
     }
 
-    // --- PAGE UNLOAD CLEANUP ---
-    addEventListenerWithCleanup(window, 'beforeunload', cleanup);
-    addEventListenerWithCleanup(window, 'unload', cleanup);
+    // --- PAGE LIFECYCLE CLEANUP (policy-safe) ---
+    // Prefer 'pagehide' over 'unload' to comply with page policies and BFCache.
+    addEventListenerWithCleanup(window, 'pagehide', cleanup);
+    // Fallback: cleanup when the page is hidden (e.g., SPA navigation)
+    const onVisibilityChange = () => {
+        try {
+            if (document.visibilityState === 'hidden') {
+                cleanup();
+            }
+        } catch (_) {}
+    };
+    addEventListenerWithCleanup(document, 'visibilitychange', onVisibilityChange);
     
     // Cleanup on extension context disconnect
     if (chrome.runtime?.onConnect) {

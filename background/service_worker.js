@@ -53,8 +53,8 @@ async function injectTakeover(reminder) {
             try {
                 const url = new URL(tab.url);
                 
-                // Skip chrome:// and extension pages
-                if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
+                // Only allow injection into http and https pages for security
+                if (!['http:', 'https:'].includes(url.protocol)) {
                     return false;
                 }
                 
