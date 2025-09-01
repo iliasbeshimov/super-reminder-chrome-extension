@@ -127,14 +127,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License.
 
-## 🙏 **Acknowledgments**
 
-- Built with modern web standards and Chrome Extension APIs
-- Designed for reliability, performance, and user experience
-- Continuously improved based on real-world usage patterns
-
----
-
-**🚀 Generated with [Claude Code](https://claude.ai/code)**
-
-**Co-Authored-By: Claude <noreply@anthropic.com>**
