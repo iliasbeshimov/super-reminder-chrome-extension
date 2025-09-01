@@ -147,6 +147,10 @@
             const dueTime = document.createElement('p');
             dueTime.className = 'sr-due-time';
             dueTime.textContent = sanitizeText(reminder.originalTime) || reminder.time || '';
+
+            const badge = document.createElement('span');
+            badge.className = relativeBadgeClass(reminder) || 'sr-badge';
+            badge.textContent = formatRelativeTime(reminder) || '';
             
             const actions = document.createElement('div');
             actions.className = 'sr-actions';
@@ -174,6 +178,12 @@
             }
             
             modal.appendChild(dueTime);
+            if (badge.textContent) {
+                const badgeWrap = document.createElement('div');
+                badgeWrap.className = 'sr-badge-wrap';
+                badgeWrap.appendChild(badge);
+                modal.appendChild(badgeWrap);
+            }
             // Hide snooze if already 2 minutes before original time
             if (!isTwoMinutesBefore(reminder)) {
                 actions.appendChild(snoozeBtn);
@@ -195,38 +205,21 @@
                 handleSnooze(reminder);
             };
             
-            const keyHandler = (e) => {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    handleDismiss(reminder);
-                } else if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleDismiss(reminder);
-                }
-            };
+            // No keyboard shortcuts for dismissal; must click a button.
             
             // Prevent clicks on modal from bubbling to overlay
             const modalClickHandler = (e) => {
                 e.stopPropagation();
             };
             
-            // Close on overlay click (background)
+            // Do not dismiss on overlay click
             const overlayClickHandler = (e) => {
-                if (e.target === overlay) {
-                    handleDismiss(reminder);
-                }
+                e.stopPropagation();
             };
             
             addEventListenerWithCleanup(dismissBtn, 'click', dismissHandler);
             if (!isTwoMinutesBefore(reminder)) {
                 addEventListenerWithCleanup(snoozeBtn, 'click', snoozeHandler);
-            }
-            // Add keydown listener with extra safety
-            try {
-                document.addEventListener('keydown', keyHandler);
-                eventListeners.push({ element: document, event: 'keydown', handler: keyHandler });
-            } catch (e) {
-                // If keydown is blocked, the modal can still be dismissed via buttons
             }
             addEventListenerWithCleanup(modal, 'click', modalClickHandler);
             addEventListenerWithCleanup(overlay, 'click', overlayClickHandler);
@@ -234,12 +227,9 @@
             // Add overlay to DOM
             document.body.appendChild(overlay);
             
-            // Focus management for accessibility
-            setTimeout(() => {
-                if (dismissBtn && dismissBtn.focus) {
-                    dismissBtn.focus();
-                }
-            }, 100);
+            // Focus management for accessibility — focus modal, not buttons
+            modal.setAttribute('tabindex', '-1');
+            setTimeout(() => { try { modal.focus(); } catch {} }, 100);
             
         } catch (error) {
             console.error('Error creating takeover:', error);
@@ -319,6 +309,43 @@
         }
         // Basic sanitization - remove potential HTML/script content
         return str.replace(/<[^>]*>/g, '').trim().substring(0, 1000);
+    }
+
+    function formatRelativeTime(reminder) {
+        try {
+            const dateStr = reminder.date || reminder.originalDate;
+            const timeStr = reminder.time || reminder.originalTime;
+            if (!dateStr || !timeStr) return '';
+            const target = new Date(`${dateStr}T${timeStr}`);
+            const now = new Date();
+            const diffMs = target - now;
+            const diffMin = Math.round(diffMs / 60000);
+            if (diffMin <= 0) return 'now';
+            const hours = Math.floor(diffMin / 60);
+            const minutes = diffMin % 60;
+            if (hours > 0) {
+                return `in ${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`;
+            }
+            return `in ${minutes}m`;
+        } catch {
+            return '';
+        }
+    }
+
+    function relativeBadgeClass(reminder) {
+        try {
+            const dateStr = reminder.date || reminder.originalDate;
+            const timeStr = reminder.time || reminder.originalTime;
+            if (!dateStr || !timeStr) return 'sr-badge';
+            const target = new Date(`${dateStr}T${timeStr}`);
+            const now = new Date();
+            const diffMin = (target - now) / 60000;
+            if (diffMin < 2) return 'sr-badge danger';
+            if (diffMin < 10) return 'sr-badge warn';
+            return 'sr-badge';
+        } catch {
+            return 'sr-badge';
+        }
     }
 
     function isTwoMinutesBefore(reminder) {

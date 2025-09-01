@@ -90,6 +90,19 @@
     line-height: 1 !important;
 }
 
+.sr-badge-wrap { margin-top: 8px !important; }
+.sr-badge {
+    display: inline-block !important;
+    padding: 4px 8px !important;
+    border-radius: 9999px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    background: #e5e7eb !important;
+    color: #374151 !important;
+}
+.sr-badge.warn { background: rgba(245, 158, 11, 0.15) !important; color: #b45309 !important; }
+.sr-badge.danger { background: rgba(239, 68, 68, 0.15) !important; color: #b91c1c !important; }
+
 .sr-actions {
     margin-top: 32px !important;
     display: flex !important;
