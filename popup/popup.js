@@ -44,6 +44,37 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function formatRelativeTime(dateStr, timeStr) {
+    try {
+        const target = new Date(`${dateStr}T${timeStr}`);
+        const now = new Date();
+        const diffMs = target - now;
+        const diffMin = Math.round(diffMs / 60000);
+        if (diffMin <= 0) return 'now';
+        const hours = Math.floor(diffMin / 60);
+        const minutes = diffMin % 60;
+        if (hours > 0) {
+            return `in ${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`;
+        }
+        return `in ${minutes}m`;
+    } catch {
+        return '';
+    }
+}
+
+function relativeBadgeClass(dateStr, timeStr) {
+    try {
+        const target = new Date(`${dateStr}T${timeStr}`);
+        const now = new Date();
+        const diffMin = (target - now) / 60000;
+        if (diffMin < 2) return 'badge danger';
+        if (diffMin < 10) return 'badge warn';
+        return 'badge';
+    } catch {
+        return 'badge';
+    }
+}
+
 function validateDateTime(date, time) {
     try {
         const dateTime = new Date(`${date}T${time}`);
@@ -73,6 +104,8 @@ function showError(message) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
     errorDiv.textContent = message;
+    errorDiv.setAttribute('role', 'status');
+    errorDiv.setAttribute('aria-live', 'polite');
     errorDiv.style.cssText = 'color: #ef4444; background: #fef2f2; padding: 8px 12px; border-radius: 4px; margin: 8px 0; border: 1px solid #fecaca;';
     
     const formSection = document.querySelector('.form-section');
@@ -91,7 +124,7 @@ async function renderReminders(forceRefresh = false) {
         remindersList.innerHTML = '';
         
         if (remindersCache.length === 0) {
-            remindersList.innerHTML = `<li class="empty-state">No reminders yet.</li>`;
+            remindersList.innerHTML = `<li class="empty-state">No reminders yet. Click "Add Reminder" to schedule your first one.</li>`;
             return;
         }
         
@@ -115,9 +148,10 @@ async function renderReminders(forceRefresh = false) {
                 });
                 
                 const li = document.createElement('li');
+                li.classList.add('fade-in');
                 li.innerHTML = `
                     <div class="reminder-info">
-                        <span class="title">${escapeHtml(reminder.title)}</span>
+                        <span class="title" data-id="${reminder.id}">${escapeHtml(reminder.title)}</span>
                         ${reminder.note ? `<span class="note" title="${escapeHtml(reminder.note)}">${escapeHtml(reminder.note)}</span>` : ''}
                         <span class="time">Happening at ${displayDate} at ${reminder.time}</span>
                     </div>
@@ -130,6 +164,12 @@ async function renderReminders(forceRefresh = false) {
                         </button>
                     </div>
                 `;
+                const timeEl = li.querySelector('.time');
+                const badge = document.createElement('span');
+                badge.className = relativeBadgeClass(reminder.date, reminder.time);
+                badge.textContent = formatRelativeTime(reminder.date, reminder.time);
+                timeEl.appendChild(document.createTextNode(' '));
+                timeEl.appendChild(badge);
                 fragment.appendChild(li);
             } catch (error) {
                 console.error('Error rendering reminder:', reminder, error);
@@ -210,6 +250,12 @@ function setInitialDate() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     reminderDateInput.value = `${year}-${month}-${day}`;
+    // Round time to next 15-minute mark
+    const minutes = now.getMinutes();
+    const rounded = Math.ceil((minutes + 5) / 15) * 15;
+    const hours = now.getHours() + Math.floor(rounded / 60);
+    const mins = rounded % 60;
+    reminderTimeInput.value = `${String(hours % 24).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
 // --- EVENT HANDLERS ---
@@ -363,13 +409,16 @@ addReminderBtn.addEventListener('click', handleFormSubmit);
 remindersList.addEventListener('click', e => {
     const editBtn = e.target.closest('.edit-btn');
     const deleteBtn = e.target.closest('.delete-btn');
+    const titleEl = e.target.closest('.title');
 
     if (editBtn) {
-                const id = parseFloat(editBtn.getAttribute('data-id'));
+        const id = Number(editBtn.getAttribute('data-id'));
         populateFormForEdit(id);
     } else if (deleteBtn) {
-                const id = parseFloat(deleteBtn.getAttribute('data-id'));
+        const id = Number(deleteBtn.getAttribute('data-id'));
         handleDeleteReminder(id);
+    } else if (titleEl && titleEl.dataset.id) {
+        populateFormForEdit(Number(titleEl.dataset.id));
     }
 });
 
@@ -403,5 +452,45 @@ reminderTitleInput.addEventListener('input', () => {
 reminderNoteInput.addEventListener('input', () => {
     if (reminderNoteInput.value.length > MAX_NOTE_LENGTH) {
         reminderNoteInput.value = reminderNoteInput.value.substring(0, MAX_NOTE_LENGTH);
+    }
+});
+
+// Live form validation and keyboard UX
+function updateFormState() {
+    const title = reminderTitleInput.value.trim();
+    const date = reminderDateInput.value;
+    const time = reminderTimeInput.value;
+    const errors = [];
+    if (!title) errors.push({ el: reminderTitleInput, msg: 'Title is required.' });
+    const v = validateDateTime(date, time);
+    if (!v.valid) errors.push({ el: reminderTimeInput, msg: v.error });
+
+    // Clear previous field errors
+    document.querySelectorAll('.field-error').forEach(n => n.remove());
+    // Show errors
+    errors.forEach(({ el, msg }) => {
+        const hint = document.createElement('div');
+        hint.className = 'field-error';
+        hint.textContent = msg;
+        el.insertAdjacentElement('afterend', hint);
+    });
+
+    addReminderBtn.disabled = errors.length > 0;
+}
+
+['input','change'].forEach(evt => {
+    reminderTitleInput.addEventListener(evt, updateFormState);
+    reminderDateInput.addEventListener(evt, updateFormState);
+    reminderTimeInput.addEventListener(evt, updateFormState);
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        clearForm();
+    } else if (e.key === 'Enter' && document.activeElement && document.activeElement.tagName !== 'TEXTAREA') {
+        updateFormState();
+        if (!addReminderBtn.disabled) {
+            handleFormSubmit();
+        }
     }
 });

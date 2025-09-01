@@ -44,10 +44,22 @@ async function injectTakeover(reminder) {
         // Filter tabs that are valid for injection
         const validTabs = allTabs.filter(tab => {
             try {
+                // Skip tabs without valid URLs
+                if (!tab.url || typeof tab.url !== 'string') {
+                    return false;
+                }
+                
                 const url = new URL(tab.url);
                 
-                // Only allow injection into http and https pages for security
+                // Only allow injection into http and https pages
                 if (!['http:', 'https:'].includes(url.protocol)) {
+                    return false;
+                }
+                
+                // Skip system pages and extensions
+                if (url.hostname === 'chrome.google.com' || 
+                    url.hostname.includes('chromewebstore.google.com') ||
+                    url.protocol === 'chrome-extension:') {
                     return false;
                 }
                 
@@ -60,18 +72,40 @@ async function injectTakeover(reminder) {
                 return true;
             } catch (e) {
                 // Invalid URL, skip it
-                console.log(`Skipping invalid URL: ${tab.url}`);
                 return false;
             }
         });
         
-        console.log(`Injecting takeover into ${validTabs.length} valid tabs`);
+        if (validTabs.length === 0) {
+            console.log('📭 No valid tabs found for takeover injection');
+            return;
+        }
+        
+        console.log(`🚀 Injecting takeover into ${validTabs.length} valid tabs`);
         
         // Process tabs in batches to avoid overwhelming the system
-        const batchSize = 5;
+        const batchSize = 3; // Reduced batch size for better reliability
+        let successCount = 0;
+        
         for (let i = 0; i < validTabs.length; i += batchSize) {
             const batch = validTabs.slice(i, i + batchSize);
-            await Promise.allSettled(batch.map(tab => injectIntoTab(tab, reminder)));
+            const results = await Promise.allSettled(batch.map(tab => injectIntoTab(tab, reminder)));
+            
+            // Count successes (resolved promises)
+            successCount += results.filter(result => result.status === 'fulfilled').length;
+            
+            // Small delay between batches
+            if (i + batchSize < validTabs.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        console.log(`📊 Injection complete: ${successCount}/${validTabs.length} tabs processed successfully`);
+        
+        // If no tabs were successfully injected, show a fallback notification
+        if (successCount === 0 && validTabs.length > 0) {
+            console.log('⚠️ No takeover could be displayed - all tabs failed injection. This may be due to CSP restrictions.');
+            showFallbackNotification(reminder);
         }
     } catch (error) {
         console.error('Error in injectTakeover:', error);
@@ -79,45 +113,56 @@ async function injectTakeover(reminder) {
 }
 
 async function injectIntoTab(tab, reminder) {
-    return new Promise(async (resolve, reject) => {
-        const HANDSHAKE_TIMEOUT = 5000; // 5 seconds
-
-        const timeoutId = setTimeout(() => {
-            chrome.runtime.onMessage.removeListener(listener);
-            reject(new Error(`Handshake timeout for tab ${tab.id}`));
-        }, HANDSHAKE_TIMEOUT);
-
-        const listener = (message, sender) => {
-            if (message.type === 'CONTENT_SCRIPT_READY' && sender.tab.id === tab.id) {
-                clearTimeout(timeoutId);
-                chrome.runtime.onMessage.removeListener(listener);
-
-                chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TAKEOVER', reminder })
-                    .then(response => {
-                        if (response?.success) {
-                            console.log(`Successfully showed takeover in tab ${tab.id}`);
-                            resolve();
-                        } else {
-                            console.warn(`Takeover in tab ${tab.id} failed after handshake. Response:`, response);
-                            reject(new Error('Takeover failed after handshake'));
-                        }
-                    })
-                    .catch(reject);
-            }
-        };
-
-        chrome.runtime.onMessage.addListener(listener);
-
+    try {
+        // First, inject the CSS and script
+        await Promise.all([
+            chrome.scripting.insertCSS({
+                target: { tabId: tab.id },
+                files: ['content/takeover.css']
+            }),
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['content/takeover_injector.js']
+            })
+        ]);
+        
+        // Wait a moment for script to initialize
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Try to send the takeover message
         try {
-            await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['content/takeover.css'] });
-            await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content/takeover_injector.js'] });
-        } catch (error) {
-            clearTimeout(timeoutId);
-            chrome.runtime.onMessage.removeListener(listener);
-            console.warn(`Failed to inject script into tab ${tab.id}. It might be a protected page or was closed.`, error.message);
-            reject(error);
+            const response = await chrome.tabs.sendMessage(tab.id, { 
+                type: 'SHOW_TAKEOVER', 
+                reminder 
+            });
+            
+            if (response?.success) {
+                console.log(`✅ Takeover displayed in tab ${tab.id}`);
+            } else {
+                console.log(`⚠️  Takeover may not have displayed in tab ${tab.id}:`, response?.error || 'Unknown response');
+            }
+        } catch (messageError) {
+            // Content script might not be ready yet, which is okay
+            console.log(`📝 Message failed for tab ${tab.id}, but injection succeeded`);
         }
-    });
+        
+    } catch (injectionError) {
+        // This is expected for protected pages (chrome://, extension pages, etc.)
+        const errorMsg = injectionError.message || String(injectionError);
+        
+        if (errorMsg.includes('Cannot access') || 
+            errorMsg.includes('The extensions API is not available') ||
+            errorMsg.includes('Cannot access contents of') ||
+            errorMsg.includes('The tab was closed') ||
+            errorMsg.includes('Permissions policy')) {
+            // These are normal for protected pages - don't log as errors
+            console.log(`🚫 Skipped protected/restricted tab ${tab.id}: ${tab.url}`);
+        } else {
+            console.warn(`❌ Unexpected injection error for tab ${tab.id}:`, errorMsg);
+        }
+        
+        // Don't throw - this allows other tabs to continue processing
+    }
 }
 
 
@@ -164,7 +209,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     break;
 
                 case 'CONTENT_SCRIPT_READY':
-                    // This is handled by a temporary listener in injectIntoTab. Do nothing here.
+                    // Content script is ready - acknowledge but no action needed
+                    sendResponse({ success: true, message: 'Acknowledged' });
                     break;
                     
                 default:
@@ -261,3 +307,23 @@ chrome.runtime.onInstalled.addListener(() => {
 self.addEventListener('activate', () => {
     console.log('Service worker activated');
 });
+
+// --- FALLBACK NOTIFICATION ---
+function showFallbackNotification(reminder) {
+    try {
+        if (chrome.notifications) {
+            // Use Chrome's notification API as fallback
+            chrome.notifications.create({
+                type: 'basic',
+                iconUrl: 'icons/icon48.png',
+                title: 'Super Reminder Alert',
+                message: `🔔 ${reminder.title}\n🕰️ ${reminder.originalTime || reminder.time}${reminder.note ? '\n📝 ' + reminder.note : ''}`
+            });
+            console.log('🔔 Fallback notification displayed');
+        } else {
+            console.log('🚫 No notification API available for fallback');
+        }
+    } catch (error) {
+        console.error('Fallback notification failed:', error);
+    }
+}

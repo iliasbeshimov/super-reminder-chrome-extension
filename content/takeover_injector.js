@@ -42,15 +42,24 @@
     }
 
     function addEventListenerWithCleanup(element, event, handler, options) {
+        // Skip adding listeners that are commonly blocked by CSP
+        if (isRestrictedEvent(event)) {
+            return;
+        }
+        
         try {
             element.addEventListener(event, handler, options);
             eventListeners.push({ element, event, handler, options });
         } catch (err) {
-            // Some pages disallow certain events (e.g., 'unload'). Fail gracefully.
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('Super Reminder: could not add listener', { event, error: String(err) });
-            }
+            // Some pages disallow certain events due to permission policies. Fail gracefully.
+            // Don't log to avoid console noise
         }
+    }
+    
+    function isRestrictedEvent(event) {
+        // Events commonly blocked by CSP or permission policies
+        const restrictedEvents = ['unload', 'beforeunload', 'pagehide', 'visibilitychange'];
+        return restrictedEvents.includes(event);
     }
 
     // --- MESSAGE LISTENER ---
@@ -93,10 +102,12 @@
     // Signal to the service worker that the script is injected and ready.
     // This is crucial for solving the race condition.
     try {
-        chrome.runtime.sendMessage({ type: 'CONTENT_SCRIPT_READY' });
+        if (chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({ type: 'CONTENT_SCRIPT_READY' });
+        }
     } catch (e) {
-        // This can happen if the extension context is invalidated (e.g., during an update).
-        console.warn('Could not send CONTENT_SCRIPT_READY message:', e.message);
+        // Extension context may be invalidated or CSP may block messaging
+        // This is not critical for functionality, so fail silently
     }
 
     // --- DOM MANIPULATION ---
@@ -143,7 +154,7 @@
             const snoozeBtn = document.createElement('button');
             snoozeBtn.id = 'sr-smart-snooze-btn';
             snoozeBtn.className = 'sr-btn sr-btn-snooze';
-            snoozeBtn.textContent = 'Snooze until 2m before';
+            snoozeBtn.textContent = 'Snooze until 2 min before';
             
             const dismissBtn = document.createElement('button');
             dismissBtn.id = 'sr-dismiss-btn';
@@ -163,7 +174,10 @@
             }
             
             modal.appendChild(dueTime);
-            actions.appendChild(snoozeBtn);
+            // Hide snooze if already 2 minutes before original time
+            if (!isTwoMinutesBefore(reminder)) {
+                actions.appendChild(snoozeBtn);
+            }
             actions.appendChild(dismissBtn);
             modal.appendChild(actions);
             overlay.appendChild(modal);
@@ -204,8 +218,16 @@
             };
             
             addEventListenerWithCleanup(dismissBtn, 'click', dismissHandler);
-            addEventListenerWithCleanup(snoozeBtn, 'click', snoozeHandler);
-            addEventListenerWithCleanup(document, 'keydown', keyHandler);
+            if (!isTwoMinutesBefore(reminder)) {
+                addEventListenerWithCleanup(snoozeBtn, 'click', snoozeHandler);
+            }
+            // Add keydown listener with extra safety
+            try {
+                document.addEventListener('keydown', keyHandler);
+                eventListeners.push({ element: document, event: 'keydown', handler: keyHandler });
+            } catch (e) {
+                // If keydown is blocked, the modal can still be dismissed via buttons
+            }
             addEventListenerWithCleanup(modal, 'click', modalClickHandler);
             addEventListenerWithCleanup(overlay, 'click', overlayClickHandler);
             
@@ -299,29 +321,56 @@
         return str.replace(/<[^>]*>/g, '').trim().substring(0, 1000);
     }
 
-    // --- PAGE LIFECYCLE CLEANUP (policy-safe) ---
-    // Prefer 'pagehide' over 'unload' to comply with page policies and BFCache.
-    addEventListenerWithCleanup(window, 'pagehide', cleanup);
-    // Fallback: cleanup when the page is hidden (e.g., SPA navigation)
-    const onVisibilityChange = () => {
+    function isTwoMinutesBefore(reminder) {
         try {
-            if (document.visibilityState === 'hidden') {
-                cleanup();
-            }
-        } catch (_) {}
-    };
-    addEventListenerWithCleanup(document, 'visibilitychange', onVisibilityChange);
-    
-    // Cleanup on extension context disconnect
-    if (chrome.runtime?.onConnect) {
-        chrome.runtime.onConnect.addListener((port) => {
-            port.onDisconnect.addListener(cleanup);
-        });
+            if (!reminder?.originalDate || !reminder?.originalTime) return false;
+            const original = new Date(`${reminder.originalDate}T${reminder.originalTime}`).getTime();
+            const expected = original - 2 * 60 * 1000; // T-2 minutes
+            const current = new Date(`${reminder.date}T${reminder.time}`).getTime();
+            // Allow small drift of up to 30s
+            return Math.abs(current - expected) <= 30 * 1000;
+        } catch {
+            return false;
+        }
+    }
+
+    // --- PAGE LIFECYCLE CLEANUP (CSP-safe) ---
+    // Try to add cleanup listeners, but don't fail if CSP blocks them
+    // Most modern browsers support these without issues
+    try {
+        // Only add essential cleanup listeners that are less likely to be blocked
+        if (window.addEventListener && !isRestrictedByCSP()) {
+            window.addEventListener('popstate', cleanup, { passive: true });
+            eventListeners.push({ element: window, event: 'popstate', handler: cleanup, options: { passive: true } });
+        }
+    } catch (e) {
+        // CSP blocked the listener, but that's okay
     }
     
-    // Additional cleanup for SPA navigation
-    if (window.addEventListener) {
-        addEventListenerWithCleanup(window, 'popstate', cleanup);
+    // Fallback cleanup timer as a safety net
+    const cleanupTimer = setTimeout(() => {
+        if (currentOverlay && !document.body.contains(currentOverlay)) {
+            cleanup();
+        }
+    }, 30000); // 30 seconds
+    
+    // Clear timer when overlay is actually removed
+    const originalCleanup = cleanup;
+    cleanup = () => {
+        clearTimeout(cleanupTimer);
+        originalCleanup();
+    };
+    
+    function isRestrictedByCSP() {
+        try {
+            // Simple test to check if we can add event listeners
+            const testHandler = () => {};
+            window.addEventListener('test', testHandler);
+            window.removeEventListener('test', testHandler);
+            return false;
+        } catch (e) {
+            return true;
+        }
     }
 
     // --- INITIALIZATION COMPLETE ---
