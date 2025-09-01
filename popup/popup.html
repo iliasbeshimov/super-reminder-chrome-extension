@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Reminder</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <svg xmlns="http://www.w3.org/2000/svg" class="logo" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2zm0 4a1 1 0 0 0-1 1v5a1 1 0 0 0 2 0V7a1 1 0 0 0-1-1zm0 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>
+            <h1>Super Reminder</h1>
+        </header>
+
+        <main>
+            <!-- Add/Edit Reminder Form -->
+            <section class="form-section">
+                <h2 id="form-title">Add New Reminder</h2>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label for="reminderTitle">Title</label>
+                        <input type="text" id="reminderTitle" placeholder="Project Phoenix Sync">
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="reminderNote">Note (Optional)</label>
+                        <input type="text" id="reminderNote" placeholder="e.g., Link to meeting doc">
+                    </div>
+                    <div class="form-group">
+                        <label for="reminderDate">Date</label>
+                        <input type="date" id="reminderDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="reminderTime">Time</label>
+                        <input type="time" id="reminderTime">
+                    </div>
+                </div>
+                <button id="addReminderBtn" class="btn btn-primary">Add Reminder</button>
+            </section>
+
+            <!-- Upcoming Reminders List -->
+            <section>
+                <h2>Upcoming Reminders</h2>
+                <ul id="remindersList">
+                    <li class="empty-state">No reminders yet.</li>
+                </ul>
+            </section>
+
+            <!-- Whitelisted Websites -->
+            <section class="whitelist-section">
+                <h2>Whitelisted Websites</h2>
+                <p class="subtitle">Takeovers will not appear on these sites.</p>
+                <div class="input-group">
+                    <input type="text" id="whitelistInput" placeholder="e.g., youtube.com">
+                    <button id="addWhitelistBtn" class="btn btn-secondary">Add</button>
+                </div>
+                <ul id="whitelist" class="tag-list"></ul>
+            </section>
+            
+            <!-- Dev Mode -->
+            <section class="dev-mode-section">
+                <h2>Dev Mode</h2>
+                <p class="subtitle">For testing purposes only.</p>
+                <button id="devTriggerBtn" class="btn btn-warning">Trigger Test Takeover</button>
+            </section>
+        </main>
+    </div>
+    <script src="popup.js" type="module"></script>
+</body>
+</html>
+

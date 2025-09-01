@@ -1,0 +1,240 @@
+:root {
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --secondary-color: #e5e7eb;
+  --secondary-hover: #d1d5db;
+  --danger-color: #ef4444;
+  --danger-hover: #dc2626;
+  --warning-color: #f59e0b;
+  --warning-hover: #d97706;
+  --success-color: #10b981;
+  --success-hover: #059669;
+  --bg-color: #fff;
+  --text-color: #1f2937;
+  --text-light: #6b7280;
+  --border-color: #e5e7eb;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  margin: 0;
+  width: 400px;
+}
+
+.container {
+  padding: 20px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+header .logo {
+  width: 32px;
+  height: 32px;
+  color: var(--primary-color);
+}
+
+header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+section {
+  margin-bottom: 24px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+label {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="time"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.btn {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primary { background-color: var(--primary-color); color: white; }
+.btn-primary:hover { background-color: var(--primary-hover); }
+
+.btn.is-update { background-color: var(--success-color); }
+.btn.is-update:hover { background-color: var(--success-hover); }
+
+.btn-secondary { background-color: var(--secondary-color); color: var(--text-color); }
+.btn-secondary:hover { background-color: var(--secondary-hover); }
+
+.btn-warning { background-color: var(--warning-color); color: white; }
+.btn-warning:hover { background-color: var(--warning-hover); }
+
+/* Reminders List */
+#remindersList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#remindersList li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f9fafb;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+#remindersList .empty-state {
+  justify-content: center;
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.reminder-info .title {
+  font-weight: 500;
+  display: block;
+}
+.reminder-info .note {
+  font-size: 12px;
+  color: var(--text-light);
+  display: block;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.reminder-info .time {
+  font-size: 12px;
+  color: var(--text-light);
+  display: block;
+}
+
+.reminder-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.reminder-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-light);
+  border-radius: 4px;
+}
+.reminder-actions button:hover {
+  background-color: #e5e7eb;
+  color: var(--primary-color);
+}
+.reminder-actions button.delete-btn:hover {
+  color: var(--danger-color);
+}
+.reminder-actions svg {
+  width: 18px;
+  height: 18px;
+}
+
+
+/* Whitelist */
+.subtitle {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.input-group {
+  display: flex;
+  gap: 8px;
+}
+.input-group input { flex-grow: 1; }
+.input-group button { width: auto; }
+
+.tag-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tag-list li {
+  display: flex;
+  align-items: center;
+  background-color: #e5e7eb;
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.tag-list button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: 6px;
+  padding: 0;
+  color: var(--text-light);
+}
+.tag-list button:hover {
+  color: var(--danger-color);
+}
+

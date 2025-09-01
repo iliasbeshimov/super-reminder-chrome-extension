@@ -1,0 +1,68 @@
+Super Reminder - File Structure
+This file system is designed for modularity and separation of concerns, making the codebase easier to understand, maintain, and extend.
+
+/
+├── manifest.json
+├── icons/
+│   ├── icon16.png
+│   ├── icon48.png
+│   └── icon128.png
+│
+├── popup/
+│   ├── popup.html
+│   ├── popup.css
+│   └── popup.js
+│
+├── background/
+│   └── service_worker.js
+│
+├── content/
+│   ├── takeover.css
+│   └── takeover_injector.js
+│
+└── shared/
+    ├── storage.js
+    └── alarms.js
+
+File Descriptions
+manifest.json
+Purpose: The core configuration file for the Chrome extension.
+
+Defines: Extension name, version, permissions (storage, alarms, scripting), icons, popup file, and background service worker.
+
+icons/
+Purpose: Contains all required icon sizes for the extension to display in the Chrome toolbar, store listing, and extensions page.
+
+popup/
+Purpose: Contains all files related to the main user interface that appears when the extension's toolbar icon is clicked.
+
+popup.html: The HTML structure of the popup (forms, lists, buttons).
+
+popup.css: All CSS styles for popup.html to ensure a consistent look and feel.
+
+popup.js: The main logic for the popup. It handles user interactions (adding, editing, deleting reminders/whitelist), reads from and writes to storage (via the storage.js module), and sets alarms (via the alarms.js module).
+
+background/
+Purpose: Contains the core background logic that runs independently of any webpage.
+
+service_worker.js: The Manifest V3 service worker. Its primary jobs are:
+
+Listening for alarms firing via chrome.alarms.onAlarm.
+
+Injecting the content script into all relevant tabs when an alarm triggers.
+
+Receiving messages from content scripts (e.g., "user clicked dismiss") and broadcasting messages to all other content scripts to synchronize actions.
+
+content/
+Purpose: Files that are programmatically injected into web pages to display the takeover alert.
+
+takeover.css: The CSS styles for the full-screen overlay, ensuring it appears correctly on top of any website content.
+
+takeover_injector.js: The JavaScript responsible for dynamically creating the overlay HTML, populating it with reminder data, and listening for user actions (Snooze/Dismiss). It communicates with the service_worker.js to report these actions.
+
+shared/
+Purpose: Reusable modules that contain specific business logic, designed to be imported into other parts of the extension (like the popup and service worker) to avoid code duplication.
+
+storage.js: A dedicated module for managing all interactions with chrome.storage.sync. It will export functions like getReminders, saveReminder, deleteReminder, getWhitelist, saveWhitelist, etc.
+
+alarms.js: A module for managing all chrome.alarms API calls. It will export functions like createAlarm(reminder), deleteAlarm(reminderId), etc., abstracting away the details of alarm creation from the rest of the application.
