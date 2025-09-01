@@ -63,28 +63,49 @@ export async function getReminders() {
         const result = await chrome.storage.sync.get(STORAGE_KEYS.REMINDERS);
         reminderCache = result[STORAGE_KEYS.REMINDERS] || [];
         updateCacheTimestamp();
-        
-        // Clean up expired reminders
-        const now = new Date();
-        const activeReminders = reminderCache.filter(reminder => {
-            try {
-                const reminderTime = new Date(`${reminder.date}T${reminder.time}`);
-                return reminderTime > now;
-            } catch {
-                return false; // Remove invalid reminders
-            }
-        });
-        
-        if (activeReminders.length !== reminderCache.length) {
-            console.log(`Cleaned up ${reminderCache.length - activeReminders.length} expired reminders`);
-            reminderCache = activeReminders;
-            await chrome.storage.sync.set({ [STORAGE_KEYS.REMINDERS]: reminderCache });
-        }
-        
+
         return reminderCache;
     } catch (error) {
         console.error('Error getting reminders:', error);
         return [];
+    }
+}
+
+// Remove reminders whose scheduled datetime is in the past.
+// Optional grace period in minutes to account for minor drift.
+export async function pruneExpiredReminders(graceMinutes = 0) {
+    try {
+        const result = await chrome.storage.sync.get(STORAGE_KEYS.REMINDERS);
+        const reminders = result[STORAGE_KEYS.REMINDERS] || [];
+        const now = Date.now();
+        const graceMs = Math.max(0, graceMinutes) * 60_000;
+
+        const keep = reminders.filter(reminder => {
+            try {
+                const t = new Date(`${reminder.date}T${reminder.time}`).getTime();
+                return (t + graceMs) > now;
+            } catch {
+                // If parsing fails, drop the reminder to avoid stale/invalid data
+                return false;
+            }
+        });
+
+        const removed = reminders.length - keep.length;
+        if (removed > 0) {
+            await chrome.storage.sync.set({ [STORAGE_KEYS.REMINDERS]: keep });
+            reminderCache = keep;
+            updateCacheTimestamp();
+            console.log(`Pruned ${removed} expired reminder(s)`);
+        } else {
+            // Keep cache in sync
+            reminderCache = reminders;
+            updateCacheTimestamp();
+        }
+
+        return removed;
+    } catch (error) {
+        console.error('Error pruning expired reminders:', error);
+        return 0;
     }
 }
 
@@ -110,7 +131,7 @@ export async function saveReminder(reminderData, id = null) {
                 throw new Error(`Cannot create more than ${MAX_REMINDERS} reminders`);
             }
             
-            const newId = Date.now() + Math.random(); // More unique ID
+            const newId = Date.now(); // Integer ID for stability
             const newReminder = { ...reminderData, id: newId };
             reminders.push(newReminder);
             reminderCache = reminders; // Update cache
@@ -119,7 +140,6 @@ export async function saveReminder(reminderData, id = null) {
         await chrome.storage.sync.set({ [STORAGE_KEYS.REMINDERS]: reminders });
         updateCacheTimestamp();
         
-        // Return the saved reminder
         // Return the saved reminder
         // When creating a new reminder, it's always the last one in the array.
         const savedReminder = id !== null ? reminders.find(r => r.id === id) : reminders[reminders.length - 1];
@@ -279,4 +299,3 @@ export async function getStorageUsage() {
         return { used: 0, total: 0, percentage: 0 };
     }
 }
-

@@ -1,10 +1,10 @@
 // --- CONSTANTS ---
-export const ALERT_MINUTES_BEFORE = 10; // Alert 10 minutes before scheduled time
+export const ALERT_MINUTES_BEFORE = 10; // Default alert lead time for new reminders
 export const MILLISECONDS_PER_MINUTE = 60 * 1000;
 export const ALARM_NAME_PREFIX = 'reminder-';
 
 // --- ALARM MANAGEMENT ---
-export function createAlarm(reminder) {
+export function createAlarm(reminder, offsetMinutes = 0) {
     try {
         if (!reminder || !reminder.id || !reminder.date || !reminder.time) {
             console.error('Invalid reminder data for alarm creation:', reminder);
@@ -18,7 +18,7 @@ export function createAlarm(reminder) {
             return false;
         }
 
-        const triggerTime = reminderTime.getTime() - (ALERT_MINUTES_BEFORE * MILLISECONDS_PER_MINUTE);
+        const triggerTime = reminderTime.getTime() - (offsetMinutes * MILLISECONDS_PER_MINUTE);
         const now = Date.now();
 
         if (triggerTime <= now) {

@@ -58,6 +58,9 @@
     messageListener = (message, sender, sendResponse) => {
         try {
             switch (message.type) {
+                case 'PING':
+                    sendResponse({ ready: true });
+                    break;
                 case 'SHOW_TAKEOVER':
                     if (message.reminder) {
                         createTakeover(message.reminder);
@@ -319,11 +322,8 @@
     // Additional cleanup for SPA navigation
     if (window.addEventListener) {
         addEventListenerWithCleanup(window, 'popstate', cleanup);
-        addEventListenerWithCleanup(window, 'pushstate', cleanup);
-        addEventListenerWithCleanup(window, 'replacestate', cleanup);
     }
 
     // --- INITIALIZATION COMPLETE ---
     console.log('Super Reminder content script loaded successfully');
 })();
-

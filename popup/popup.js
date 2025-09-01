@@ -5,11 +5,13 @@ import {
     getWhitelist,
     addWhitelistSite,
     deleteWhitelistSite,
+    pruneExpiredReminders,
 } from '../shared/storage.js';
 
 import {
     createAlarm,
-    deleteAlarm
+    deleteAlarm,
+    ALERT_MINUTES_BEFORE
 } from '../shared/alarms.js';
 
 // --- CONSTANTS ---
@@ -262,7 +264,7 @@ async function handleFormSubmit() {
         };
         
         const savedReminder = await saveReminder(reminderData, editingReminderId);
-        await createAlarm(savedReminder);
+        await createAlarm(savedReminder, ALERT_MINUTES_BEFORE);
         
         // Invalidate cache and re-render
         remindersCache = null;
@@ -313,9 +315,9 @@ async function handleAddWhitelist() {
             return;
         }
         
-        // Basic URL validation
-        const urlPattern = /^[a-zA-Z0-9][a-zA-Z0-9-._]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
-        if (!urlPattern.test(site)) {
+        // Domain validation: allow localhost or domain.tld (with subdomains)
+        const domainPattern = /^(localhost|(\*\.)?([a-z0-9-]+\.)+[a-z]{2,})$/i;
+        if (!domainPattern.test(site)) {
             showError('Please enter a valid website (e.g., example.com).');
             return;
         }
@@ -343,6 +345,8 @@ async function handleDeleteWhitelist(site) {
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Clean up any past reminders before initial render
+        await pruneExpiredReminders(1);
         await Promise.all([
             renderReminders(true),
             renderWhitelist()
@@ -401,4 +405,3 @@ reminderNoteInput.addEventListener('input', () => {
         reminderNoteInput.value = reminderNoteInput.value.substring(0, MAX_NOTE_LENGTH);
     }
 });
-

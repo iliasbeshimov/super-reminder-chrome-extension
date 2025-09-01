@@ -1,8 +1,7 @@
 import { getReminders, getWhitelist, saveReminder, deleteReminder } from '../shared/storage.js';
-import { createAlarm, deleteAlarm } from '../shared/alarms.js';
+import { createAlarm, deleteAlarm, ALARM_NAME_PREFIX } from '../shared/alarms.js';
 
 // --- CONSTANTS ---
-const SCRIPT_INJECTION_TIMEOUT = 1000; // Wait 1 second before sending message
 const TEST_REMINDER_OFFSET = 0; // Trigger test immediately instead of 10 mins
 const SNOOZE_MINUTES_BEFORE = 2;
 const MAX_INJECTION_RETRIES = 3;
@@ -13,20 +12,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     try {
         console.log("Alarm fired:", alarm.name);
         
-        // Alarms are named `reminder-${id}`
-        if (!alarm.name || !alarm.name.startsWith('reminder-')) {
+        // Alarms are named `${ALARM_NAME_PREFIX}${id}`
+        if (!alarm.name || !alarm.name.startsWith(ALARM_NAME_PREFIX)) {
             console.warn('Invalid alarm name format:', alarm.name);
             return;
         }
-        
-                const reminderId = parseFloat(alarm.name.split('-')[1]);
-        if (isNaN(reminderId)) {
-            console.warn('Invalid reminder ID from alarm:', alarm.name);
-            return;
-        }
-        
+        const idStr = alarm.name.slice(ALARM_NAME_PREFIX.length);
         const reminders = await getReminders();
-        const reminder = reminders.find(r => r.id === reminderId);
+        const reminder = reminders.find(r => String(r.id) === idStr);
         
         if (!reminder) {
             console.warn('Reminder not found for alarm:', reminderId);
@@ -268,4 +261,3 @@ chrome.runtime.onInstalled.addListener(() => {
 self.addEventListener('activate', () => {
     console.log('Service worker activated');
 });
-
