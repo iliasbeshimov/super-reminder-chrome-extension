@@ -119,7 +119,7 @@ async function renderReminders(forceRefresh = false) {
                     <div class="reminder-info">
                         <span class="title">${escapeHtml(reminder.title)}</span>
                         ${reminder.note ? `<span class="note" title="${escapeHtml(reminder.note)}">${escapeHtml(reminder.note)}</span>` : ''}
-                        <span class="time">${displayDate} at ${reminder.time}</span>
+                        <span class="time">Happening at ${displayDate} at ${reminder.time}</span>
                     </div>
                     <div class="reminder-actions">
                         <button data-id="${reminder.id}" class="edit-btn" title="Edit">
